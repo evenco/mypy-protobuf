@@ -39,6 +39,7 @@ else:
 
 GENERATED = "@ge" + "nerated"  # So phabricator doesn't think this file is generated
 HEADER = "# {} by generate_proto_mypy_stubs.py.  Do not edit!\n".format(GENERATED)
+KEYWORDS = ('global',)
 
 class PkgWriter(object):
     """Writes a single pyi file"""
@@ -348,11 +349,24 @@ class PkgWriter(object):
         # type: () -> Text
         imports = []
         imports.append(u"import sys")
+
+        problematic = []
+
         for pkg, items in sorted(six.iteritems(self.imports)):
             imports.append(u"from {} import (".format(pkg))
             for (name, mangled_name) in sorted(items):
-                imports.append(u"    {} as {},".format(name, mangled_name))
+                if any([f".{kw}." in in mangled_name for kw in KEYWORDS]):
+                    problematic.append([pkg, name, mangled_name])
+                else:
+                    imports.append(u"    {} as {},".format(name, mangled_name))
             imports.append(u")\n")
+        imports.append("")
+
+        if problematic:
+            imports.append(u"import importlib\n")
+            for pkg, name, mangled_name in problematic:
+                imports.append(u"{} = importlib.__import__('{}').{}".format(mangled_name, pkg, name))
+
         imports.append("")
         return "\n".join(imports + self.lines)
 
